@@ -1,0 +1,50 @@
+# Datasets & Raw Archives (Exceed GitHub 100 MB limit)
+data/*
+!data/.gitkeep
+*.zip
+*.tar
+*.tar.gz
+*.7z
+
+# Model Weights & Checkpoints
+models/*
+!models/.gitkeep
+*.pt
+*.pth
+*.onnx
+*.h5
+*.hdf5
+*.ckpt
+*.safetensors
+*.pkl
+
+# Submission Outputs & Experiment Artifacts
+submissions/*
+!submissions/.gitkeep
+*.csv
+!**/sample_*.csv
+reports/*.pptx
+
+# Python & Jupyter
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/*
+
+# Virtual Environments & Env Files
+.venv/
+venv/
+env/
+.env
+.env.*
+
+# Logs & OS / IDE Files
+*.log
+.DS_Store
+Thumbs.db
+[Dd]esktop.ini
+.vscode/
+.idea/
+scratch/
