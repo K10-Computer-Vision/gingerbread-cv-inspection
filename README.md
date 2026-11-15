@@ -23,21 +23,24 @@ gingerbread-cv-inspection/
 ├── requirements.txt
 ├── .gitignore
 ├── docs/
-│   └── PROJECT_SPEC.md                              # Spesifikasi lengkap proyek (Bagian 1–14)
+│   ├── PROJECT_SPEC.md                              # Spesifikasi lengkap proyek (Bagian 1–14)
+│   └── TASK2_NON_DL_EXPLANATION.md                  # Penjelasan alur kode Tugas 2 Non-Deep Learning
 ├── data/                                            # Dataset lokal (di-gitignore, tidak ikut push)
 │   ├── gingerbread_seed2026_students_training.zip   # Dataset training (taruh di sini)
 │   └── hidden_students.zip                          # Hidden test dataset (taruh di sini)
 ├── notebooks/
-│   └── Gingerbread_Student_Starter_Colab_ID_v2.ipynb
+│   ├── Gingerbread_Student_Starter_Colab_ID_v2.ipynb
+│   └── Task2_Non_DL_Pipeline_dan_Analisis.ipynb     # Notebook analisis & evaluasi Tugas 2 Non-DL
 ├── src/
 │   ├── task1_non_dl/                                # Metode klasik Task 1 (SIFT/ORB, RANSAC, morfologi)
 │   ├── task1_dl/                                    # Metode deep learning Task 1
-│   ├── task2_non_dl/                                # Metode klasik Task 2 (deteksi sisi, counting, matching)
+│   ├── task2_non_dl/                                # Pipeline klasik Task 2 (geometry, detector, eval)
 │   ├── task2_dl/                                    # Metode deep learning Task 2
 │   └── utils/                                       # Loader dataset, evaluasi metrik, visualisasi
 ├── models/                                          # Bobot model terlatih (di-gitignore untuk file besar)
 ├── submissions/                                     # Output CSV prediksi Kaggle & evaluasi
-└── reports/                                         # Bahan & PDF presentasi kelompok
+└── reports/
+    └── figures/                                     # Visualisasi diagnostik & PDF presentasi kelompok
 ```
 
 ---
@@ -80,3 +83,20 @@ Gunakan `notebooks/Gingerbread_Student_Starter_Colab_ID_v2.ipynb` untuk eksplora
    - `[Feature] Menambahkan pipeline segmentasi warna untuk Task 1 Non-DL`
    - `[Docs] Memperbarui hasil eksperimen Task 2 pada README`
 3. Pastikan file `.zip`, citra dataset, dan bobot model besar (`.pt`/`.pth`) tidak ikut ter-commit.
+
+---
+
+## Implementasi Task 2 — Non-Deep Learning (`feat/task2-non-dl`)
+
+Pipeline *classical computer vision* untuk inspeksi kubus 3D diimplementasikan secara modular pada paket `src/task2_non_dl/`:
+
+- **`src/task2_non_dl/geometry.py`**: Rekonstruksi latar kuadratik-radial, ekstraksi heksagon sub-piksel (`cv2.fitLine` Huber), penentuan *vanishing center* homogen beserta disambiguasi paritas rusuk, dan rektifikasi homography sisi `front`, `right`, `top` ke `384x384` (`Mean IoU = 0.9843`, `Min IoU = 0.9320` pada `100` kubus / `300` sisi).
+- **`src/task2_non_dl/detector.py`**: Segmentasi instansi cookie kardus, penggabungan fragmen terbelah lubang, penyelarasan *template matching* *coarse-to-fine* tahan rotasi/pencahayaan, serta evaluasi tri-modal (`miss_sil`, `hole_frac`, `blob_frac`) dan pengelompokan desain unik.
+- **`src/task2_non_dl/evaluate_and_visualize.py`**: Skrip evaluasi lengkap (`MAE = 0.0000`, `Exact Match = 100.0%` pada `train`, `val`, `test`), pembuatan gambar diagnostik ke `reports/figures/`, serta inferensi CSV tervalidasi ke `submissions/`.
+- **`notebooks/Gingerbread_Student_Starter_Colab_ID_v2.ipynb`** (Sel 12 `predict_cube_non_dl`) & **`notebooks/Task2_Non_DL_Pipeline_dan_Analisis.ipynb`**: Integrasi notebook beserta *inline fallback* mandiri untuk Google Colab.
+- **Dokumentasi alur kode**: Lihat [docs/TASK2_NON_DL_EXPLANATION.md](docs/TASK2_NON_DL_EXPLANATION.md).
+- **Menjalankan evaluasi & visualisasi**:
+  ```bash
+  python -m src.task2_non_dl.evaluate_and_visualize
+  ```
+
