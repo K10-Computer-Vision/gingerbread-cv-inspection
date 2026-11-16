@@ -9,6 +9,9 @@ beserta jumlah desain unik.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import cv2
 import numpy as np
 
@@ -38,13 +41,69 @@ def _crop_tight_rgba(rgba: np.ndarray, pad: int = 4) -> np.ndarray:
     return rgba[y0:y1, x0:x1]
 
 
+def _augment_references_from_template_dir(references: dict) -> None:
+    """Melengkapi kamus referensi menjadi 7 desain jika folder template_all tersedia."""
+    if len(references) >= 7:
+        return
+
+    candidates = [
+        Path.cwd() / "template_all",
+        Path.cwd().parent / "template_all",
+    ]
+    if "__file__" in globals():
+        candidates.append(Path(__file__).resolve().parents[2] / "template_all")
+
+    tdir = next((p for p in candidates if p.is_dir()), None)
+    if tdir is None:
+        return
+
+    designs_file = tdir / "designs.json"
+    if designs_file.exists():
+        records = json.loads(designs_file.read_text(encoding="utf-8"))
+    else:
+        records = [
+            {"design_id": i, "name": p.stem, "reference_file": p.name}
+            for i, p in enumerate(sorted(tdir.glob("*.png")), start=1)
+        ]
+
+    existing_names = {str(v.get("name", "")).lower() for v in references.values()}
+    next_id = max((int(k) for k in references.keys()), default=0) + 1
+    for item in records:
+        name = str(item["name"])
+        if name.lower() in existing_names:
+            continue
+        p_ref = tdir / item["reference_file"]
+        if not p_ref.exists():
+            continue
+        bgra = cv2.imread(str(p_ref), cv2.IMREAD_UNCHANGED)
+        if bgra is None:
+            continue
+        if bgra.ndim == 2:
+            rgba = cv2.cvtColor(bgra, cv2.COLOR_GRAY2RGBA)
+        elif bgra.shape[2] == 3:
+            rgba = cv2.cvtColor(bgra, cv2.COLOR_BGR2RGBA)
+        else:
+            rgba = cv2.cvtColor(bgra, cv2.COLOR_BGRA2RGBA)
+        did = int(item["design_id"])
+        if did in references:
+            did = next_id
+            next_id += 1
+        references[did] = {
+            "name": name,
+            "rgba": rgba,
+            "mask": rgba[:, :, 3] > 0,
+        }
+        existing_names.add(name.lower())
+
+
 def prepare_reference_cache(references: dict) -> dict[int, dict]:
     """Menyiapkan cache template multi-skala berbasis rasio aspek asli referensi.
 
-    Kami menjaga rasio aspek alami referensi (misalnya 256x512 menjadi setengah
-    skala proporsional) agar tidak terjadi distorsi siluet saat penyelarasan di
-    ruang kanonik sisi kubus berukuran 384x384.
+    Kami melengkapi referensi dari folder template_all bila tersedia agar seluruh
+    7 desain tercakup, menjaga rasio aspek alami referensi, dan menyediakan
+    cache resolusi untuk mempercepat pencocokan template.
     """
+    _augment_references_from_template_dir(references)
     sig = tuple((int(k), tuple(v["rgba"].shape)) for k, v in sorted(references.items()))
     if sig in _REF_CACHE_STORE:
         return _REF_CACHE_STORE[sig]
@@ -72,6 +131,8 @@ def prepare_reference_cache(references: dict) -> dict[int, dict]:
             "mask_inner": mask_inner,
             "h": tight.shape[0],
             "w": tight.shape[1],
+            "coarse_cache": {},
+            "fine_cache": {},
         }
 
     _REF_CACHE_STORE[sig] = cache
@@ -87,10 +148,21 @@ def _bbox_gap(b1: tuple[int, int, int, int], b2: tuple[int, int, int, int]) -> f
     return float(np.hypot(dx, dy))
 
 
+def _oriented_aspect_ratio(mask: np.ndarray) -> float:
+    """Menghitung rasio aspek minimum bounding rectangle terorientasi via cv2.minAreaRect."""
+    ys, xs = np.where(mask > 0)
+    if len(ys) < 5:
+        return 1.0
+    pts = np.column_stack([xs, ys]).astype(np.float32)
+    _, (rw, rh), _ = cv2.minAreaRect(pts)
+    lo, hi = min(rw, rh), max(rw, rh)
+    return float(hi / max(1.0, float(lo)))
+
+
 def _merge_split_fragments(
     comps: list[dict], fg_raw: np.ndarray, max_area: int
 ) -> list[dict]:
-    """Menggabungkan fragmen cookie yang terbelah oleh cacat lubang bagian tengah."""
+    """Menggabungkan fragmen cookie yang terbelah oleh cacat lubang atau potongan tepi miring."""
     if len(comps) <= 1:
         return comps
 
@@ -106,19 +178,32 @@ def _merge_split_fragments(
                 gap = _bbox_gap(c1["bbox"], c2["bbox"])
                 if gap > 14.0:
                     continue
+                sum_area = c1["area"] + c2["area"]
+                if sum_area > 18500:
+                    continue
                 x1 = min(c1["bbox"][0], c2["bbox"][0])
                 y1 = min(c1["bbox"][1], c2["bbox"][1])
                 x2 = max(c1["bbox"][0] + c1["bbox"][2], c2["bbox"][0] + c2["bbox"][2])
                 y2 = max(c1["bbox"][1] + c1["bbox"][3], c2["bbox"][1] + c2["bbox"][3])
                 mw, mh = x2 - x1, y2 - y1
                 m_ar = max(mw, mh) / max(1.0, float(min(mw, mh)))
-                sum_area = c1["area"] + c2["area"]
 
                 ar1 = max(c1["bbox"][2], c1["bbox"][3]) / max(1.0, float(min(c1["bbox"][2], c1["bbox"][3])))
                 ar2 = max(c2["bbox"][2], c2["bbox"][3]) / max(1.0, float(min(c2["bbox"][2], c2["bbox"][3])))
-                one_is_stubby = (ar1 < 1.60) or (ar2 < 1.60) or (min(c1["area"], c2["area"]) < 0.65 * max_area)
+                rot_ar1 = _oriented_aspect_ratio(c1["mask_closed"])
+                rot_ar2 = _oriented_aspect_ratio(c2["mask_closed"])
+                one_is_stubby = (
+                    (ar1 < 1.60)
+                    or (ar2 < 1.60)
+                    or (rot_ar1 < 1.65)
+                    or (rot_ar2 < 1.65)
+                    or (min(c1["area"], c2["area"]) < 0.65 * max_area)
+                )
+                if not one_is_stubby:
+                    continue
 
-                if one_is_stubby and (1.40 <= m_ar <= 2.75) and (sum_area <= 18500):
+                rot_ar_merged = _oriented_aspect_ratio(((c1["mask_closed"] | c2["mask_closed"]) > 0).astype(np.uint8))
+                if (1.40 <= rot_ar_merged <= 2.85) or (1.40 <= m_ar <= 2.75):
                     if gap < best_gap:
                         best_gap = gap
                         best_pair = (i, j)
@@ -198,6 +283,11 @@ def segment_face_cookies(
             int(stats[lbl, cv2.CC_STAT_WIDTH]),
             int(stats[lbl, cv2.CC_STAT_HEIGHT]),
         )
+        # Tolak strip tipis kebocoran warna di sekitar tepi rusuk sisi kubus.
+        ar_box = max(bw, bh) / max(1.0, float(min(bw, bh)))
+        touches_edge = (x <= 14) or (y <= 14) or (x + bw >= w - 14) or (y + bh >= h - 14)
+        if ar_box > 3.6 or min(bw, bh) < 26 or (touches_edge and ar_box > 2.9):
+            continue
         comp_mask = (labels == lbl).astype(np.uint8)
         rich_ratio = float(np.mean(rich_pixel[comp_mask > 0]))
         if rich_ratio < 0.22 and area < 1500:
@@ -329,6 +419,7 @@ def _match_template_coarse(
     scale: float,
     card_med: np.ndarray,
     coarse_factor: float = 0.35,
+    roi_s_cache: dict[tuple[int, int], tuple[int, int, np.ndarray]] | None = None,
 ) -> tuple[float, int, int] | None:
     """Pencocokan cepat berbasis FFT tanpa mask pada resolusi rendah untuk tahap coarse."""
     bx, by, bw, bh = bbox
@@ -339,23 +430,29 @@ def _match_template_coarse(
     rx1 = min(pw, bx + bw + pad)
     ry1 = min(ph, by + bh + pad)
 
-    roi_rgb = patch_rgb[ry0:ry1, rx0:rx1].astype(np.float32)
     th = max(14, int(round(ref_entry["h"] * scale * coarse_factor)))
     tw = max(10, int(round(ref_entry["w"] * scale * coarse_factor)))
+    target_w = max(tw + 4, int(round((rx1 - rx0) * coarse_factor)))
+    target_h = max(th + 4, int(round((ry1 - ry0) * coarse_factor)))
 
-    roi_s = cv2.resize(
-        roi_rgb,
-        (
-            max(tw + 4, int(round(roi_rgb.shape[1] * coarse_factor))),
-            max(th + 4, int(round(roi_rgb.shape[0] * coarse_factor))),
-        ),
-        interpolation=cv2.INTER_AREA,
-    )
+    cached_roi = roi_s_cache.get((target_w, target_h)) if roi_s_cache is not None else None
+    if cached_roi is not None:
+        rx0, ry0, roi_s = cached_roi
+    else:
+        roi_rgb = patch_rgb[ry0:ry1, rx0:rx1].astype(np.float32)
+        roi_s = cv2.resize(roi_rgb, (target_w, target_h), interpolation=cv2.INTER_AREA)
+        if roi_s_cache is not None:
+            roi_s_cache[(target_w, target_h)] = (rx0, ry0, roi_s)
 
-    tmpl_rgb = cv2.resize(ref_entry["rgb"], (tw, th), interpolation=cv2.INTER_AREA)
-    tmpl_m = cv2.resize(ref_entry["mask"], (tw, th), interpolation=cv2.INTER_NEAREST) == 0
-    tmpl_rgb = tmpl_rgb.copy()
-    tmpl_rgb[tmpl_m] = card_med
+    c_key = (tw, th)
+    cached_c = ref_entry["coarse_cache"].get(c_key)
+    if cached_c is None:
+        t_rgb_c = cv2.resize(ref_entry["rgb"], (tw, th), interpolation=cv2.INTER_AREA)
+        t_bg_c = cv2.resize(ref_entry["mask"], (tw, th), interpolation=cv2.INTER_NEAREST) == 0
+        cached_c = (t_rgb_c, t_bg_c)
+        ref_entry["coarse_cache"][c_key] = cached_c
+    tmpl_rgb = cached_c[0].copy()
+    tmpl_rgb[cached_c[1]] = card_med
 
     res = cv2.matchTemplate(roi_s, tmpl_rgb, cv2.TM_CCOEFF_NORMED)
     if res.size == 0 or not np.isfinite(res).any():
@@ -394,9 +491,15 @@ def _match_template_fine(
         dx0, dy0 = sx0 - wx0, sy0 - wy0
         win[dy0 : dy0 + (sy1 - sy0), dx0 : dx0 + (sx1 - sx0)] = patch_rgb[sy0:sy1, sx0:sx1]
 
-    tmpl_rgb = cv2.resize(ref_entry["rgb"], (tw, th), interpolation=cv2.INTER_AREA)
-    tmpl_mask = cv2.resize(ref_entry["mask"], (tw, th), interpolation=cv2.INTER_NEAREST)
-    if int(tmpl_mask.sum()) < 20:
+    f_key = (tw, th)
+    cached_f = ref_entry["fine_cache"].get(f_key)
+    if cached_f is None:
+        t_rgb_f = cv2.resize(ref_entry["rgb"], (tw, th), interpolation=cv2.INTER_AREA)
+        t_mask_f = cv2.resize(ref_entry["mask"], (tw, th), interpolation=cv2.INTER_NEAREST)
+        cached_f = (t_rgb_f, t_mask_f, int(t_mask_f.sum()))
+        ref_entry["fine_cache"][f_key] = cached_f
+    tmpl_rgb, tmpl_mask, mask_sum = cached_f
+    if mask_sum < 20:
         return None
 
     res = cv2.matchTemplate(win, tmpl_rgb, cv2.TM_CCOEFF_NORMED, mask=tmpl_mask)
@@ -434,6 +537,81 @@ def _fit_shading_affine(
         gains[c] = a
         biases[c] = b
     return gains, biases
+
+
+def _extract_aligned_design_stats(
+    cand: dict,
+    r_entry: dict,
+    card_med: np.ndarray,
+) -> dict:
+    """Mengekstrak patch ter-align untuk satu desain dan menghitung skor kesesuaiannya."""
+    rot_img, rot_solid, rot_raw, _ = cand["rc"]
+    sc = cand["sc"]
+    gx, gy = cand["gx"], cand["gy"]
+
+    th = max(16, int(round(r_entry["h"] * sc)))
+    tw = max(12, int(round(r_entry["w"] * sc)))
+    tmpl_rgb = cv2.resize(r_entry["rgb"], (tw, th), interpolation=cv2.INTER_AREA)
+    tmpl_mask = cv2.resize(r_entry["mask_inner"], (tw, th), interpolation=cv2.INTER_NEAREST) > 0
+
+    ph, pw = rot_img.shape[:2]
+    obs_crop = np.empty((th, tw, 3), dtype=np.float32)
+    obs_crop[:, :] = card_med
+    solid_crop = np.zeros((th, tw), dtype=np.uint8)
+    raw_crop = np.zeros((th, tw), dtype=np.uint8)
+
+    sx0, sy0 = max(0, gx), max(0, gy)
+    sx1, sy1 = min(pw, gx + tw), min(ph, gy + th)
+    dx0, dy0 = sx0 - gx, sy0 - gy
+    dx1, dy1 = dx0 + (sx1 - sx0), dy0 + (sy1 - sy0)
+    if sx1 > sx0 and sy1 > sy0:
+        obs_crop[dy0:dy1, dx0:dx1] = rot_img[sy0:sy1, sx0:sx1]
+        solid_crop[dy0:dy1, dx0:dx1] = rot_solid[sy0:sy1, sx0:sx1]
+        raw_crop[dy0:dy1, dx0:dx1] = rot_raw[sy0:sy1, sx0:sx1]
+
+    tmpl_area = max(1, int(tmpl_mask.sum()))
+    solid_bool = solid_crop > 0
+    raw_bool = raw_crop > 0
+    vis_mask = tmpl_mask & solid_bool
+    raw_vis = tmpl_mask & raw_bool
+    coverage = float(vis_mask.sum()) / float(tmpl_area)
+    vis_cov = float(raw_vis.sum()) / float(tmpl_area)
+
+    ncc_on_solid = 0.0
+    if int(vis_mask.sum()) >= 80:
+        ov = obs_crop[vis_mask] - obs_crop[vis_mask].mean(axis=0, keepdims=True)
+        tv = tmpl_rgb[vis_mask] - tmpl_rgb[vis_mask].mean(axis=0, keepdims=True)
+        denom = float(np.sqrt(np.sum(ov * ov) * np.sum(tv * tv)))
+        if denom > 1e-6:
+            ncc_on_solid = float(np.sum(ov * tv) / denom)
+
+    p55_err = 999.0
+    if int(raw_vis.sum()) >= 50:
+        g, b = _fit_shading_affine(obs_crop[raw_vis], tmpl_rgb[raw_vis])
+        err = np.linalg.norm(obs_crop[raw_vis] - (tmpl_rgb[raw_vis] * g + b), axis=1)
+        p55_err = float(np.percentile(err, 55))
+
+    design_score = (
+        0.45 * float(cand["ncc"])
+        + 0.55 * ncc_on_solid
+        + 0.35 * vis_cov
+        - 0.010 * min(p55_err, 150.0)
+    )
+    return {
+        "cand": cand,
+        "th": th,
+        "tw": tw,
+        "tmpl_rgb": tmpl_rgb,
+        "tmpl_mask": tmpl_mask,
+        "tmpl_area": tmpl_area,
+        "obs_crop": obs_crop,
+        "solid_crop": solid_crop,
+        "solid_bool": solid_bool,
+        "raw_bool": raw_bool,
+        "coverage": coverage,
+        "ncc_on_solid": ncc_on_solid,
+        "design_score": design_score,
+    }
 
 
 def align_and_score_cookie(
@@ -475,6 +653,7 @@ def align_and_score_cookie(
         rot_cache[ang] = rc
         rot_img, _, _, bbox = rc
         _, _, bw_r, bh_r = bbox
+        roi_s_cache: dict[tuple[int, int], tuple[int, int, np.ndarray]] = {}
         for did, r_entry in ref_cache.items():
             est_scale = max(bw_r / max(1.0, float(r_entry["w"])), bh_r / max(1.0, float(r_entry["h"])))
             scales = [0.92 * est_scale, 1.00 * est_scale, 1.10 * est_scale]
@@ -482,7 +661,9 @@ def align_and_score_cookie(
                 scales.append(peer_scale)
             for sc in scales:
                 sc_c = float(np.clip(sc, 0.25, 1.40))
-                hit = _match_template_coarse(rot_img, bbox, r_entry, sc_c, card_med, coarse_factor=0.35)
+                hit = _match_template_coarse(
+                    rot_img, bbox, r_entry, sc_c, card_med, coarse_factor=0.35, roi_s_cache=roi_s_cache
+                )
                 if hit is not None:
                     coarse_hits.append((hit[0], did, ang, sc_c, hit[1], hit[2]))
 
@@ -499,118 +680,125 @@ def align_and_score_cookie(
 
     coarse_hits.sort(key=lambda t: t[0], reverse=True)
 
-    best_fine: dict | None = None
-    best_score = -2.0
-    tried_seeds: set[tuple[int, int, int]] = set()
-
-    # Pilih maksimal 3 hipotesis coarse teratas dengan variasi (desain, sudut, skala) yang berbeda.
-    top_coarse = [coarse_hits[0]]
-    for ch in coarse_hits[1:]:
-        if ch[0] >= coarse_hits[0][0] - 0.06:
+    # Pilih maksimal 3 kandidat coarse beragam per desain (+ skala peer_scale bila berbeda).
+    per_design_cands: dict[int, list[tuple[float, int, float, float, int, int]]] = {}
+    for ch in coarse_hits:
+        d = ch[1]
+        c_list = per_design_cands.setdefault(d, [])
+        if not c_list:
+            c_list.append(ch)
+            continue
+        is_peer_cand = (
+            peer_scale is not None
+            and abs(ch[3] - peer_scale) <= 0.04
+            and all(abs(prev[3] - peer_scale) > 0.04 for prev in c_list)
+        )
+        if len(c_list) < 3 and ch[0] >= c_list[0][0] - 0.08:
             differs = any(
-                ch[1] != prev[1]
-                or abs(((ch[2] - prev[2] + 180.0) % 360.0) - 180.0) > 12.0
-                or abs(ch[3] - prev[3]) > 0.06
-                for prev in top_coarse
+                abs(((ch[2] - prev[2] + 180.0) % 360.0) - 180.0) >= 7.0
+                or abs(ch[3] - prev[3]) >= 0.045
+                for prev in c_list
             )
-            if differs or len(top_coarse) < 2:
-                top_coarse.append(ch)
-                if len(top_coarse) >= 3:
-                    break
+            if differs:
+                c_list.append(ch)
+        elif is_peer_cand and len(c_list) < 4:
+            c_list.append(ch)
 
-    for _, did, ang0, sc0, gx0, gy0 in top_coarse:
+    tried_seeds: set[tuple[int, int, int]] = set()
+    design_stats: list[dict] = []
+    max_coarse = coarse_hits[0][0]
+    sorted_designs = sorted(per_design_cands.items(), key=lambda kv: kv[1][0][0], reverse=True)
+
+    for rank_idx, (did, cands) in enumerate(sorted_designs):
+        if max_coarse >= 0.76 and rank_idx >= 2 and cands[0][0] < max_coarse - 0.22:
+            continue
         r_entry = ref_cache[did]
-        for sf in (0.96, 1.00, 1.04):
-            sc = float(np.clip(sc0 * sf, 0.25, 1.40))
-            seed_key = (did, int(round(ang0)), int(round(sc * 100)))
-            if seed_key in tried_seeds:
-                continue
-            tried_seeds.add(seed_key)
-            rc = rot_cache[ang0]
-            hit = _match_template_fine(rc[0], r_entry, sc, (gx0, gy0), card_med, search_rad=8)
-            if hit is not None and hit[0] > best_score:
-                best_score = hit[0]
-                best_fine = {
-                    "did": did,
-                    "ncc": hit[0],
-                    "ang": ang0,
-                    "sc": sc,
-                    "gx": hit[1],
-                    "gy": hit[2],
-                    "rc": rc,
-                }
+        best_for_did: dict | None = None
+        best_ncc_did = -2.0
 
-        # Perhalus sudut pada skala terbaik saat ini dengan rentang +-3 derajat.
-        best_sc_here = best_fine["sc"] if best_fine is not None else sc0
-        for da in (-3.5, 3.5):
-            ang = ((ang0 + da + 180.0) % 360.0) - 180.0
-            rc = rot_cache.get(ang)
-            if rc is None:
-                rc = _rotate_crop_patch(warped_face, comp, ang, card_med)
-                if rc is None:
+        for _, _, ang0, sc0, gx0, gy0 in cands:
+            for sf in (0.96, 1.00, 1.04):
+                sc = float(np.clip(sc0 * sf, 0.25, 1.40))
+                seed_key = (did, int(round(ang0)), int(round(sc * 100)))
+                if seed_key in tried_seeds:
                     continue
-                rot_cache[ang] = rc
-            rot_img, _, _, bbox = rc
-            c_seed = _match_template_coarse(
-                rot_img, bbox, r_entry, best_sc_here, card_med, coarse_factor=0.35
-            )
-            sx, sy = (c_seed[1], c_seed[2]) if c_seed is not None else (gx0, gy0)
-            hit = _match_template_fine(rot_img, r_entry, best_sc_here, (sx, sy), card_med, search_rad=7)
-            if hit is not None and hit[0] > best_score:
-                best_score = hit[0]
-                best_fine = {
-                    "did": did,
-                    "ncc": hit[0],
-                    "ang": ang,
-                    "sc": best_sc_here,
-                    "gx": hit[1],
-                    "gy": hit[2],
-                    "rc": rc,
-                }
+                tried_seeds.add(seed_key)
+                rc = rot_cache[ang0]
+                hit = _match_template_fine(rc[0], r_entry, sc, (gx0, gy0), card_med, search_rad=8)
+                if hit is not None and hit[0] > best_ncc_did:
+                    best_ncc_did = hit[0]
+                    best_for_did = {
+                        "did": did,
+                        "ncc": hit[0],
+                        "ang": ang0,
+                        "sc": sc,
+                        "gx": hit[1],
+                        "gy": hit[2],
+                        "rc": rc,
+                    }
 
-    assert best_fine is not None
+        # Perhalus sudut pada kandidat terbaik desain ini dalam rentang +-3.5 derajat.
+        if best_for_did is not None:
+            if rank_idx < 2 or best_for_did["ncc"] >= max_coarse - 0.25:
+                ang0 = best_for_did["ang"]
+                best_sc_here = best_for_did["sc"]
+                for da in (-3.5, 3.5):
+                    ang = ((ang0 + da + 180.0) % 360.0) - 180.0
+                    rc = rot_cache.get(ang)
+                    if rc is None:
+                        rc = _rotate_crop_patch(warped_face, comp, ang, card_med)
+                        if rc is None:
+                            continue
+                        rot_cache[ang] = rc
+                    rot_img, _, _, bbox = rc
+                    c_seed = _match_template_coarse(
+                        rot_img, bbox, r_entry, best_sc_here, card_med, coarse_factor=0.35
+                    )
+                    sx, sy = (c_seed[1], c_seed[2]) if c_seed is not None else (best_for_did["gx"], best_for_did["gy"])
+                    hit = _match_template_fine(rot_img, r_entry, best_sc_here, (sx, sy), card_med, search_rad=7)
+                    if hit is not None and hit[0] > best_ncc_did:
+                        best_ncc_did = hit[0]
+                        best_for_did = {
+                            "did": did,
+                            "ncc": hit[0],
+                            "ang": ang,
+                            "sc": best_sc_here,
+                            "gx": hit[1],
+                            "gy": hit[2],
+                            "rc": rc,
+                        }
+            design_stats.append(_extract_aligned_design_stats(best_for_did, r_entry, card_med))
+
+    if not design_stats:
+        return {
+            "design_id": next(iter(ref_cache)),
+            "ncc": 0.0,
+            "miss_sil": 0.0,
+            "hole_frac": 0.0,
+            "blob_frac": 0.0,
+            "defect_ratio": 0.0,
+            "is_defective": False,
+        }
+
+    winner = max(design_stats, key=lambda st: st["design_score"])
+    best_fine = winner["cand"]
     did = best_fine["did"]
-    r_entry = ref_cache[did]
-    rot_img, rot_solid, rot_raw, _ = best_fine["rc"]
-    sc = best_fine["sc"]
-    gx, gy = best_fine["gx"], best_fine["gy"]
+    th = winner["th"]
+    tw = winner["tw"]
+    tmpl_rgb = winner["tmpl_rgb"]
+    tmpl_mask = winner["tmpl_mask"]
+    tmpl_area = winner["tmpl_area"]
+    obs_crop = winner["obs_crop"]
+    solid_crop = winner["solid_crop"]
+    solid_bool = winner["solid_bool"]
+    raw_bool = winner["raw_bool"]
+    coverage = winner["coverage"]
+    ncc_on_solid = winner["ncc_on_solid"]
 
-    th = max(16, int(round(r_entry["h"] * sc)))
-    tw = max(12, int(round(r_entry["w"] * sc)))
-    tmpl_rgb = cv2.resize(r_entry["rgb"], (tw, th), interpolation=cv2.INTER_AREA)
-    tmpl_mask = cv2.resize(r_entry["mask_inner"], (tw, th), interpolation=cv2.INTER_NEAREST) > 0
-
-    ph, pw = rot_img.shape[:2]
-    obs_crop = np.empty((th, tw, 3), dtype=np.float32)
-    obs_crop[:, :] = card_med
-    solid_crop = np.zeros((th, tw), dtype=np.uint8)
-    raw_crop = np.zeros((th, tw), dtype=np.uint8)
-
-    sx0, sy0 = max(0, gx), max(0, gy)
-    sx1, sy1 = min(pw, gx + tw), min(ph, gy + th)
-    dx0, dy0 = sx0 - gx, sy0 - gy
-    dx1, dy1 = dx0 + (sx1 - sx0), dy0 + (sy1 - sy0)
-    if sx1 > sx0 and sy1 > sy0:
-        obs_crop[dy0:dy1, dx0:dx1] = rot_img[sy0:sy1, sx0:sx1]
-        solid_crop[dy0:dy1, dx0:dx1] = rot_solid[sy0:sy1, sx0:sx1]
-        raw_crop[dy0:dy1, dx0:dx1] = rot_raw[sy0:sy1, sx0:sx1]
-
-    tmpl_area = max(1, int(tmpl_mask.sum()))
-    solid_bool = solid_crop > 0
-    raw_bool = raw_crop > 0
-    vis_mask = tmpl_mask & solid_bool
-    coverage = float(vis_mask.sum()) / float(tmpl_area)
-
-    # Korelasi khusus wilayah cookie terlihat agar boundary_cut tetap dikenali sebagai desain yang sama.
-    ncc_on_solid = 0.0
-    if int(vis_mask.sum()) >= 80:
-        ov = obs_crop[vis_mask] - obs_crop[vis_mask].mean(axis=0, keepdims=True)
-        tv = tmpl_rgb[vis_mask] - tmpl_rgb[vis_mask].mean(axis=0, keepdims=True)
-        denom = float(np.sqrt(np.sum(ov * ov) * np.sum(tv * tv)))
-        if denom > 1e-6:
-            ncc_on_solid = float(np.sum(ov * tv) / denom)
-
-    is_known_design = (best_fine["ncc"] >= 0.62) or (ncc_on_solid >= 0.74 and coverage >= 0.42)
+    if len(ref_cache) >= 7:
+        is_known_design = (best_fine["ncc"] >= 0.42) or (ncc_on_solid >= 0.55 and coverage >= 0.38)
+    else:
+        is_known_design = (best_fine["ncc"] >= 0.62) or (ncc_on_solid >= 0.74 and coverage >= 0.42)
 
     # Normalisasi pencahayaan sekali pada piksel intact lalu terapkan ke seluruh template.
     intact_mask = tmpl_mask & raw_bool
@@ -690,6 +878,9 @@ def _estimate_unique_designs(
     """Menghitung jumlah desain unik per sisi secara konsisten dengan batas aturan starter."""
     if not face_instances:
         return 0
+    if num_refs >= 7:
+        unique_ids = {inst["design_id"] for inst in face_instances}
+        return min(len(face_instances), num_refs, max(1, len(unique_ids)))
     matched_ids = {inst["design_id"] for inst in face_instances if inst["ncc"] >= 0.62}
     unknown = [
         (inst, comp)

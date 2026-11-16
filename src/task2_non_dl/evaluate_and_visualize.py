@@ -46,7 +46,7 @@ def cube_columns(leaderboard: bool = False) -> list[str]:
 
 
 def load_zip_references(zf: zipfile.ZipFile) -> dict[int, dict]:
-    """Memuat kamus desain referensi dari arsip dataset training."""
+    """Memuat kamus desain referensi dari arsip training dan melengkapinya dari template_all."""
     records = json.loads(zf.read("references/designs.json"))
     refs: dict[int, dict] = {}
     for item in records:
@@ -57,6 +57,34 @@ def load_zip_references(zf: zipfile.ZipFile) -> dict[int, dict]:
             "rgba": rgba,
             "mask": rgba[:, :, 3] > 0,
         }
+
+    # Lengkapi seluruh 7 desain apabila folder template_all tersedia di repositori.
+    tdir = next(
+        (p for p in (Path("template_all"), Path(__file__).resolve().parents[2] / "template_all") if p.is_dir()),
+        None,
+    )
+    if tdir is not None:
+        designs_file = tdir / "designs.json"
+        if designs_file.exists():
+            t_records = json.loads(designs_file.read_text(encoding="utf-8"))
+        else:
+            t_records = [
+                {"design_id": i, "name": p.stem, "reference_file": p.name}
+                for i, p in enumerate(sorted(tdir.glob("*.png")), start=1)
+            ]
+        for item in t_records:
+            did = int(item["design_id"])
+            if did in refs:
+                continue
+            p_ref = tdir / item["reference_file"]
+            if p_ref.exists():
+                with Image.open(p_ref) as im:
+                    rgba = np.asarray(im.convert("RGBA"))
+                refs[did] = {
+                    "name": item["name"],
+                    "rgba": rgba,
+                    "mask": rgba[:, :, 3] > 0,
+                }
     return refs
 
 

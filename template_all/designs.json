@@ -1,0 +1,37 @@
+[
+  {
+    "design_id": 1,
+    "name": "blue_wizard",
+    "reference_file": "blue_wizard.png"
+  },
+  {
+    "design_id": 2,
+    "name": "brown_hat_gnome",
+    "reference_file": "brown_hat_gnome.png"
+  },
+  {
+    "design_id": 3,
+    "name": "green_hat_elf",
+    "reference_file": "green_hat_elf.png"
+  },
+  {
+    "design_id": 4,
+    "name": "pilgrim",
+    "reference_file": "pilgrim.png"
+  },
+  {
+    "design_id": 5,
+    "name": "santa",
+    "reference_file": "santa.png"
+  },
+  {
+    "design_id": 6,
+    "name": "striped_hat_elf",
+    "reference_file": "striped_hat_elf.png"
+  },
+  {
+    "design_id": 7,
+    "name": "witch",
+    "reference_file": "witch.png"
+  }
+]

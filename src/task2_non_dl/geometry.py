@@ -385,7 +385,7 @@ def compute_vanishing_center(
 
     var_odd = _eval_partition_variance(rgb, quads_odd)
     var_even = _eval_partition_variance(rgb, quads_even)
-    if var_even < 0.65 * var_odd:
+    if var_even < 0.82 * var_odd:
         return v_even, 0
     return v_odd, 1
 

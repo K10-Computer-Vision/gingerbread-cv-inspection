@@ -28,6 +28,7 @@ gingerbread-cv-inspection/
 ├── data/                                            # Dataset lokal (di-gitignore, tidak ikut push)
 │   ├── gingerbread_seed2026_students_training.zip   # Dataset training (taruh di sini)
 │   └── hidden_students.zip                          # Hidden test dataset (taruh di sini)
+├── template_all/                                    # 7 desain referensi lengkap & designs.json
 ├── notebooks/
 │   ├── Gingerbread_Student_Starter_Colab_ID_v2.ipynb
 │   └── Task2_Non_DL_Pipeline_dan_Analisis.ipynb     # Notebook analisis & evaluasi Tugas 2 Non-DL
@@ -90,9 +91,9 @@ Gunakan `notebooks/Gingerbread_Student_Starter_Colab_ID_v2.ipynb` untuk eksplora
 
 Pipeline *classical computer vision* untuk inspeksi kubus 3D diimplementasikan secara modular pada paket `src/task2_non_dl/`:
 
-- **`src/task2_non_dl/geometry.py`**: Rekonstruksi latar kuadratik-radial, ekstraksi heksagon sub-piksel (`cv2.fitLine` Huber), penentuan *vanishing center* homogen beserta disambiguasi paritas rusuk, dan rektifikasi homography sisi `front`, `right`, `top` ke `384x384` (`Mean IoU = 0.9843`, `Min IoU = 0.9320` pada `100` kubus / `300` sisi).
-- **`src/task2_non_dl/detector.py`**: Segmentasi instansi cookie kardus, penggabungan fragmen terbelah lubang, penyelarasan *template matching* *coarse-to-fine* tahan rotasi/pencahayaan, serta evaluasi tri-modal (`miss_sil`, `hole_frac`, `blob_frac`) dan pengelompokan desain unik.
-- **`src/task2_non_dl/evaluate_and_visualize.py`**: Skrip evaluasi lengkap (`MAE = 0.0000`, `Exact Match = 100.0%` pada `train`, `val`, `test`), pembuatan gambar diagnostik ke `reports/figures/`, serta inferensi CSV tervalidasi ke `submissions/`.
+- **`src/task2_non_dl/geometry.py`**: Rekonstruksi latar kuadratik-radial, ekstraksi heksagon sub-piksel (`cv2.fitLine` Huber), penentuan *vanishing center* homogen (`var_even < 0.82 * var_odd`), dan rektifikasi homography sisi `front`, `right`, `top` ke `384x384` (`Mean IoU = 0.9843`, `Min IoU = 0.9320` pada `100` kubus / `300` sisi).
+- **`src/task2_non_dl/detector.py` + `template_all/`**: Auto-pemuatan lengkap ke-7 desain referensi (`blue_wizard`, `brown_hat_gnome`, `green_hat_elf`, `pilgrim`, `santa`, `striped_hat_elf`, `witch`), penolakan *border strip*, penggabungan fragmen miring berbasis `cv2.minAreaRect`, pencocokan *multi-template* `design_score`, dan penilaian tri-modal (`miss_sil`, `hole_frac`, `blob_frac`).
+- **`src/task2_non_dl/evaluate_and_visualize.py`**: Skrip evaluasi lengkap (`MAE = 0.0000`, `Exact Match = 100.0%` pada `train`, `val`, `test`), pembuatan gambar diagnostik ke `reports/figures/`, serta inferensi CSV 7-referensi tervalidasi ke `submissions/`.
 - **`notebooks/Gingerbread_Student_Starter_Colab_ID_v2.ipynb`** (Sel 12 `predict_cube_non_dl`) & **`notebooks/Task2_Non_DL_Pipeline_dan_Analisis.ipynb`**: Integrasi notebook beserta *inline fallback* mandiri untuk Google Colab.
 - **Dokumentasi alur kode**: Lihat [docs/TASK2_NON_DL_EXPLANATION.md](docs/TASK2_NON_DL_EXPLANATION.md).
 - **Menjalankan evaluasi & visualisasi**:
