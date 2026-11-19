@@ -472,8 +472,8 @@ def main() -> None:
         run_hidden_inference(
             args.hidden_zip,
             refs,
-            Path("submissions/submission_task2_non_dl_leaderboard.csv"),
-            Path("submissions/submission_task2_non_dl_main.csv"),
+            Path("submissions/task2_ncc_lb.csv"),
+            Path("submissions/task2_ncc_main.csv"),
             Path("reports/figures/task2_non_dl_hidden_samples.png"),
         )
 

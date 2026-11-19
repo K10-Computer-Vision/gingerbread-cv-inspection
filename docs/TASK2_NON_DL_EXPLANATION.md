@@ -32,15 +32,26 @@ Setelah ketiga sisi diluruskan ke ruang kanonik `384x384`, kami mendeteksi jumla
 
 ---
 
-## 3. Skrip Evaluasi, Visualisasi, & Integrasi Notebook
+## 3. Model Pembanding, Skrip Evaluasi, & Integrasi Notebook
 
-- **`template_all/` & `src/task2_non_dl/evaluate_and_visualize.py`**: Kami menyertakan `template_all/designs.json` untuk memetakan 7 desain lengkap, mengeksekusi tolok ukur penuh 100 citra kubus berlabel, memperbarui tiga figur diagnostik di `reports/figures/`, serta mengekspor CSV 200 citra *hidden test* tervalidasi ke `submissions/`.
+- **`src/task2_non_dl/baselines.py` (`v3`)**: Kami menyediakan tiga model pembanding resmi yang berbagi *front-end* geometri 3D identik (`geometry.py`) serta segmentasi cookie (`detector.py`):
+  1. `predict_cube_sift_ransac`: SIFT (`nfeatures=850`, `contrastThreshold=0.012`) pada *adaptive ROI upscaling* (`target 380 px`) + Lowe ratio (`0.82`) + *two-stage pose fitting* (4-DOF RANSAC menuju *refit* analitik SVD Umeyama pada $e \le 2.2\text{ px}$), verifikasi fotometrik 3 hipotesis teratas (`corr`, `IoU`, `p55`), evaluasi residu $3 \times 3$, serta *fallback* `Contour + HSV` saat pose lemah.
+  2. `predict_cube_orb_ransac`: Detektor biner ORB (`nfeatures=950`, `fastThreshold=5`, `scaleFactor=1.12`, `nlevels=10`) pada target ROI `320 px` dengan `NORM_HAMMING` (`ratio=0.82`) serta alur *refit* Umeyama dan verifikasi fotometrik yang konsisten.
+  3. `predict_cube_contour_hsv`: Pelurusan berbasis momen kontur utama $\theta$ tanpa *keypoint*, normalisasi median kanal `V`, ekstraksi vektor HSV global + 3 zona + 6 strip beserta profil lebar siluet (`widths`), *trimmed mean* 6-strip, dan penyelarasan *dual-anchor* atas/bawah saat rasio aspek menyusut (`ar < 0.88 * ref_ar`).
+- **`template_all/` & `src/task2_non_dl/evaluate_and_visualize.py`**: Kami menyertakan `template_all/designs.json` untuk memetakan 7 desain lengkap, mengeksekusi tolok ukur penuh `100` citra kubus berlabel, memperbarui tiga figur diagnostik di `reports/figures/`, serta mengekspor `task2_ncc_lb.csv` dan `task2_ncc_main.csv` ke `submissions/`.
 - **`notebooks/Gingerbread_Student_Starter_Colab_ID_v2.ipynb` (Sel 12)**: Kami menyinkronkan fungsi `predict_cube_non_dl` (termasuk *inline fallback* Colab mandiri yang langsung mendukung `template_all` 7 desain saat dijalankan di repo).
-- **`notebooks/Task2_Non_DL_Pipeline_dan_Analisis.ipynb`**: Kami memperbarui dan mengeksekusi penuh *notebook* analisis Tugas 2 Non-DL hingga lolos tanpa error di semua sel kode.
+- **`notebooks/Task2_Non_DL_Pipeline_dan_Analisis.ipynb`**: Kami memperbarui menjadi 24 sel penuh berisi 5 visualisasi mekanisme matematis (rekonstruksi 3D, anatomi residu tri-modal `Main NCC`, pose `RANSAC -> Umeyama` SIFT vs ORB, profil lebar 6-strip & HSV `Contour + HSV`, dan perbandingan akurasi/heatmap/kesamaan `200` hidden), audit ke-8 berkas submisi `submissions/task2_*_{lb,main}.csv`, serta daftar referensi lengkap.
 
 ---
 
 ## 4. Ringkasan Hasil Evaluasi Terverifikasi
+
+| Model (`v3`) | Kecepatan (`100` citra) | `MAE_defective` (`all` / `test`) | `MAE_design_count` (`all` / `test`) | `Exact Match Main` (`all` / `test`) | `Exact Match LB` (`all` / `test`) | Kesamaan Hidden `200` dgn Main | Berkas CSV (`submissions/`) |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| **Main Multi-Template NCC** | `4.601 s/citra` | `0.0000` / `0.0000` | `0.0000` / `0.0000` | `100.0%` / `100.0%` | `100.0%` / `100.0%` | `100.0%` | `task2_ncc_lb.csv`, `task2_ncc_main.csv` |
+| **SIFT + RANSAC (`v3`)** | `1.086 s/citra` | `0.0033` / `0.0000` | `0.0033` / `0.0000` | `99.0%` / `100.0%` | `98.0%` / `100.0%` | `93.0%` | `task2_sift_lb.csv`, `task2_sift_main.csv` |
+| **ORB + RANSAC (`v3`)** | `0.802 s/citra` | `0.0133` / `0.0000` | `0.0033` / `0.0222` | `97.0%` / `100.0%` | `96.0%` / `93.3%` | `92.0%` | `task2_orb_lb.csv`, `task2_orb_main.csv` |
+| **Contour + HSV (`v3`)** | `0.314 s/citra` | `0.0367` / `0.0000` | `0.0267` / `0.0222` | `89.0%` / `100.0%` | `81.0%` / `93.3%` | `80.0%` | `task2_contour_lb.csv`, `task2_contour_main.csv` |
 
 - **Akurasi Segmentasi Geometri 3D (`100` kubus / `300` sisi)**: `Mean IoU = 0.9843`, `Min IoU = 0.9320`.
 - **Akurasi Evaluasi End-to-End 7 Referensi (`100` kubus berlabel, `432.39s`)**:

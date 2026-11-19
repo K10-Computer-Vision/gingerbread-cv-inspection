@@ -1,5 +1,10 @@
 """Paket deteksi dan penghitungan gingerbread 3D kubus secara non-deep learning (Tugas 2)."""
 
+from .baselines import (
+    predict_cube_contour_hsv,
+    predict_cube_orb_ransac,
+    predict_cube_sift_ransac,
+)
 from .detector import (
     align_and_score_cookie,
     predict_cube_non_dl,
@@ -21,7 +26,10 @@ __all__ = [
     "compute_vanishing_center",
     "extract_cube_hexagon",
     "fit_background_model",
+    "predict_cube_contour_hsv",
     "predict_cube_non_dl",
+    "predict_cube_orb_ransac",
+    "predict_cube_sift_ransac",
     "prepare_reference_cache",
     "rectify_face",
     "segment_cube_faces",
