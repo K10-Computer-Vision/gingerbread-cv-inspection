@@ -2,8 +2,6 @@
 
 Computer vision pipeline for gingerbread defect inspection and 3D cube packaging counting using non-deep learning and deep learning approaches.
 
-> **Dokumentasi Lengkap Proyek:** Lihat [docs/PROJECT_SPEC.md](docs/PROJECT_SPEC.md) untuk rincian masalah, format CSV/Kaggle, metrik evaluasi, jadwal, dan ketentuan pengumpulan.
-
 ---
 
 ## Ringkasan Tugas
@@ -23,7 +21,6 @@ gingerbread-cv-inspection/
 ├── requirements.txt
 ├── .gitignore
 ├── docs/
-│   ├── PROJECT_SPEC.md                              # Spesifikasi lengkap proyek (Bagian 1–14)
 │   └── TASK2_NON_DL_EXPLANATION.md                  # Penjelasan alur kode Tugas 2 Non-Deep Learning
 ├── data/                                            # Dataset lokal (di-gitignore, tidak ikut push)
 │   ├── gingerbread_seed2026_students_training.zip   # Dataset training (taruh di sini)
@@ -31,6 +28,8 @@ gingerbread-cv-inspection/
 ├── template_all/                                    # 7 desain referensi lengkap & designs.json
 ├── notebooks/
 │   ├── Gingerbread_Student_Starter_Colab_ID_v2.ipynb
+│   ├── Gingerbread_Task1_DeepLearning.ipynb           # Notebook pipeline & inferensi Tugas 1 Deep Learning
+│   ├── MiniProject_Task1_NonDL.ipynb                # Notebook pipeline & inferensi Tugas 1 Non-Deep Learning
 │   └── Task2_Non_DL_Pipeline_dan_Analisis.ipynb     # Notebook analisis & evaluasi Tugas 2 Non-DL
 ├── src/
 │   ├── task1_non_dl/                                # Metode klasik Task 1 (SIFT/ORB, RANSAC, morfologi)
@@ -39,7 +38,10 @@ gingerbread-cv-inspection/
 │   ├── task2_dl/                                    # Metode deep learning Task 2
 │   └── utils/                                       # Loader dataset, evaluasi metrik, visualisasi
 ├── models/                                          # Bobot model terlatih (di-gitignore untuk file besar)
-├── submissions/                                     # Output CSV prediksi Kaggle & evaluasi
+├── submissions/                                     # Output CSV prediksi Kaggle & evaluasi terstruktur per tugas
+│   ├── submission_tugas1_nondl/                     # Hasil Task 1 Non-DL (submission_task1_nondl*.csv)
+│   ├── submission_tugas1_dl/                        # Hasil Task 1 DL (kaggle_task1_dl_submission.csv, single_dl_*)
+│   └── submission_tugas2_nondl/                     # Hasil Task 2 Non-DL (task2_*_{lb,main}.csv)
 └── reports/
     └── figures/                                     # Visualisasi diagnostik & PDF presentasi kelompok
 ```
@@ -124,7 +126,7 @@ Tantangan tersulit meliputi paritas rotasi antarkuadran saat rektifikasi, serpih
 
 Evaluasi pada `100` citra berlabel (`70` train, `15` val, `15` test) dan `200` citra *hidden* ([Task2_Non_DL_Pipeline_dan_Analisis.ipynb](notebooks/Task2_Non_DL_Pipeline_dan_Analisis.ipynb)) — termasuk metrik khusus sisi cacat (`MAE_def_on_def_faces`) dan studi generalisasi `1-ref` vs `7-ref` — menghasilkan kinerja berikut:
 
-| Model (`v3`) | Kecepatan (`100` citra) | `MAE_total` / `MAE_def` (`all`) | `MAE_def_on_def_faces` | `MAE_design_count` (`all`) | `Exact Match Main` (`all` / `test`) | `Exact Match LB` (`all` / `test`) | Kesamaan Hidden (`200` citra) | Kaggle Public Score Tercatat | Berkas Submisi (`submissions/`) |
+| Model (`v3`) | Kecepatan (`100` citra) | `MAE_total` / `MAE_def` (`all`) | `MAE_def_on_def_faces` | `MAE_design_count` (`all`) | `Exact Match Main` (`all` / `test`) | `Exact Match LB` (`all` / `test`) | Kesamaan Hidden (`200` citra) | Kaggle Public Score Tercatat | Berkas Submisi (`submissions/submission_tugas2_nondl/`) |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
 | **Main Multi-Template NCC** | `2.043 s/citra` | `0.0000` / `0.0000` | `0.0000` | `0.0000` | `100.0%` / `100.0%` | `100.0%` / `100.0%` | `100.0%` | **`0.00000`** | `task2_ncc_lb.csv`, `task2_ncc_main.csv` |
 | **SIFT + RANSAC (`v3`)** | `0.633 s/citra` | `0.0000` / `0.0033` | `0.0098` | `0.0033` | `99.0%` / `100.0%` | `98.0%` / `100.0%` | `93.0%` | `0.03333` (`v1`) → `0.01296` (`v2`) | `task2_sift_lb.csv`, `task2_sift_main.csv` |

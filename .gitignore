@@ -21,6 +21,10 @@ models/*
 # Submission Outputs & Experiment Artifacts
 submissions/*
 !submissions/.gitkeep
+!submissions/submission_tugas*/
+submissions/submission_tugas*/*
+!submissions/submission_tugas*/.gitkeep
+work/
 *.csv
 !**/sample_*.csv
 reports/*.pptx

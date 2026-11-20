@@ -1,7 +1,7 @@
 """Model pembanding Non-Deep Learning (SIFT+RANSAC, ORB+RANSAC, & Contour+HSV).
 
-Modul ini menyediakan tiga pipeline Non-Deep Learning tambahan sesuai opsi
-resmi Bagian 6.A PROJECT_SPEC.md untuk keperluan studi ablasi dan perbandingan
+Modul ini menyediakan tiga pipeline Non-Deep Learning tambahan berbasis fitur
+klasik (*classical computer vision*) untuk keperluan studi ablasi dan perbandingan
 objektif terhadap pipeline utama `predict_cube_non_dl` pada Tugas 2.
 """
 
