@@ -26,6 +26,7 @@ work/
 *.csv
 !**/sample_*.csv
 reports/*.pptx
+reports/task2_dl_visualizations/
 
 # Python & Jupyter
 __pycache__/
