@@ -7,8 +7,6 @@ data/*
 *.7z
 
 # Model Weights & Checkpoints
-models/*
-!models/.gitkeep
 *.pt
 *.pth
 *.onnx

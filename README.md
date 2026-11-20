@@ -32,18 +32,13 @@ gingerbread-cv-inspection/
 │   ├── MiniProject_Task1_NonDL.ipynb                # Notebook pipeline & inferensi Tugas 1 Non-Deep Learning
 │   └── Task2_Non_DL_Pipeline_dan_Analisis.ipynb     # Notebook analisis & evaluasi Tugas 2 Non-DL
 ├── src/
-│   ├── task1_non_dl/                                # Metode klasik Task 1 (SIFT/ORB, RANSAC, morfologi)
-│   ├── task1_dl/                                    # Metode deep learning Task 1
-│   ├── task2_non_dl/                                # Pipeline klasik Task 2 (geometry, detector, baselines, eval)
-│   ├── task2_dl/                                    # Metode deep learning Task 2
-│   └── utils/                                       # Loader dataset, evaluasi metrik, visualisasi
-├── models/                                          # Bobot model terlatih (di-gitignore untuk file besar)
+│   └── task2_non_dl/                                # Pipeline klasik Task 2 (geometry, detector, baselines, eval)
 ├── submissions/                                     # Output CSV prediksi Kaggle & evaluasi terstruktur per tugas
 │   ├── submission_tugas1_nondl/                     # Hasil Task 1 Non-DL (submission_task1_nondl*.csv)
 │   ├── submission_tugas1_dl/                        # Hasil Task 1 DL (kaggle_task1_dl_submission.csv, single_dl_*)
 │   └── submission_tugas2_nondl/                     # Hasil Task 2 Non-DL (task2_*_{lb,main}.csv)
 └── reports/
-    └── figures/                                     # Visualisasi diagnostik & PDF presentasi kelompok
+    └── figures/                                     # Visualisasi diagnostik & analisis Task 2 Non-DL
 ```
 
 ---
