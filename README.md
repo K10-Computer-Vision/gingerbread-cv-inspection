@@ -1,5 +1,7 @@
 # Gingerbread CV Inspection
 
+- **GitHub Repository:** https://github.com/K10-Computer-Vision/gingerbread-cv-inspection
+
 Computer vision pipeline for gingerbread defect inspection and 3D cube packaging counting using non-deep learning and deep learning approaches.
 
 ---
