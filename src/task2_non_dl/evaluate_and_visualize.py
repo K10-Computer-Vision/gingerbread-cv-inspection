@@ -453,11 +453,21 @@ def main() -> None:
         item = summary[sp]
         mm = item["main"]
         ml = item["leaderboard"]
+        m_pos = ml["mae_defective_on_defective_faces"]
+        pos_str = f"{m_pos:.4f}" if m_pos is not None else "N/A"
         print(
             f"  [{sp:5s} n={item['n']:3d}] "
-            f"MAE_total={mm['mae_total']:.4f}, MAE_def={mm['mae_defective']:.4f}, MAE_des={ml['mae_design_count']:.4f} | "
+            f"MAE_total={mm['mae_total']:.4f}, MAE_def={mm['mae_defective']:.4f}, MAE_def_pos={pos_str}, MAE_des={ml['mae_design_count']:.4f} | "
             f"EM_Face={mm['exact_match_face_pct']:.1f}%, EM_Main={mm['exact_match_image_pct']:.1f}%, "
             f"EM_LB={ml['exact_match_image_pct']:.1f}%"
+        )
+    ml_all = summary["all"]["leaderboard"]
+    print("  Per-face MAE [all]:")
+    for fn in FACES:
+        print(
+            f"    {fn:5s}: MAE_total={ml_all[f'mae_{fn}_total']:.4f}, "
+            f"MAE_def={ml_all[f'mae_{fn}_defective']:.4f}, "
+            f"MAE_des={ml_all[f'mae_{fn}_design_count']:.4f}"
         )
 
     render_pipeline_figure(
