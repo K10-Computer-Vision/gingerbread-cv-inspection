@@ -6,10 +6,10 @@ Computer vision pipeline for gingerbread defect inspection and 3D cube packaging
 
 ## Ringkasan Tugas
 
-| Tugas | Deskripsi | Pendekatan Wajib | Target Output |
-| :--- | :--- | :--- | :--- |
-| **Task 1** | Deteksi cacat gingerbread individual (`boundary_cut`, `interior_hole`, `missing_feature`) | Non-Deep Learning & Deep Learning | `image_id,is_defective,defect_score` *(Kaggle: `image_id,is_defective`)* |
-| **Task 2** | Menghitung total gingerbread, jumlah cacat, & jumlah desain unik per sisi kemasan kubus (`front`, `right`, `top`) | Non-Deep Learning & Deep Learning | CSV 7 kolom (tugas utama) / 10 kolom (leaderboard) |
+| Tugas | Deskripsi | Pendekatan Wajib | Target Output | Status Implementasi |
+| :--- | :--- | :--- | :--- | :--- |
+| **Task 1** | Deteksi cacat gingerbread individual (`boundary_cut`, `interior_hole`, `missing_feature`) | Non-Deep Learning & Deep Learning | `image_id,is_defective,defect_score` *(Kaggle: `image_id,is_defective`)* | Lengkap (Non-DL & DL) |
+| **Task 2** | Menghitung total gingerbread, jumlah cacat, & jumlah desain unik per sisi kemasan kubus (`front`, `right`, `top`) | Non-Deep Learning & Deep Learning | CSV 7 kolom (tugas utama) / 10 kolom (leaderboard) | Lengkap (Non-DL); **DL belum tersedia** |
 
 ---
 
@@ -43,25 +43,63 @@ gingerbread-cv-inspection/
 
 ---
 
-## Setup Lokal / Google Colab
+## Petunjuk Menjalankan Kode (Dependensi, Lokasi Data, Bobot Model, & Eksekusi)
 
-### 1. Clone & Instalasi Dependensi
+### 1. Dependensi & Lingkungan Eksekusi
+Seluruh pipeline telah diuji pada **Python 3.13.14** (`OpenCV 4.13.0`, `NumPy`, `Pandas`, `scikit-learn`, `SciPy`, `PyTorch`, `Torchvision`).
 ```bash
 git clone https://github.com/K10-Computer-Vision/gingerbread-cv-inspection.git
 cd gingerbread-cv-inspection
 pip install -r requirements.txt
+pip install jupyter nbconvert   # tambahan jika menjalankan notebook lewat terminal/Jupyter lokal
 ```
 
-### 2. Menyiapkan Dataset (Wajib Manual / Di-gitignore)
-Dataset berukuran >100 MB sehingga tidak disimpan di GitHub. Unduh arsip berikut lalu simpan ke folder `data/` (atau ekstrak ke subfolder `data/extracted/`):
-- **Training Dataset (`gingerbread_seed2026_students_training.zip`)**: [Google Drive](https://drive.google.com/file/d/1M1IRpFds1VyIkc9IJBehrprcjAEaPXSw/view?usp=sharing)
-- **Hidden Test Dataset (`hidden_students.zip`)**: [Google Drive](https://drive.google.com/file/d/1Jkl9WL75xv_Gxb24kaDKE48Q1q6iYFYJ/view?usp=sharing)
-- **Template Desain (`template_all`)**: Gunakan tautan resmi dari dokumen kelas untuk referensi/augmentasi 7 desain.
+### 2. Lokasi Data & Resolusi Path Otomatis
+- **Dataset Training (`data/gingerbread_seed2026_students_training.zip`):** Memuat `200` citra *single* (`140` train, `30` val, `30` test) dan `100` citra *cube* (`70` train, `15` val, `15` test). Tautan resmi: [Google Drive](https://drive.google.com/file/d/1M1IRpFds1VyIkc9IJBehrprcjAEaPXSw/view?usp=sharing).
+- **Dataset Hidden Test (`data/hidden_students.zip`):** Memuat `700` citra *single* dan `200` citra *cube* tanpa label. Tautan resmi: [Google Drive](https://drive.google.com/file/d/1Jkl9WL75xv_Gxb24kaDKE48Q1q6iYFYJ/view?usp=sharing).
+- **Template Referensi (`template_all/`):** **Sudah tersedia langsung di dalam repositori** (`template_all/designs.json` beserta 7 citra PNG desain: `blue_wizard`, `brown_hat_gnome`, `green_hat_elf`, `pilgrim`, `santa`, `striped_hat_elf`, `witch`).
+- **Auto-Resolver:** Keempat notebook otomatis mendeteksi akar repositori baik saat dijalankan dari `Mini_Project/`, dari `notebooks/`, maupun di Google Colab (`/content/drive/MyDrive/Comvis/Mini_Project`, `/content/drive/MyDrive/COMVIS/Mini_Project`, atau `/content/Mini_Project`). Pada Task 1, jika file `.zip` belum ada di `data/`, notebook otomatis mengunduhnya menggunakan `gdown`.
 
-> **Catatan Hidden Test:** `hidden_students.zip` tidak menyertakan folder `references/`. Pastikan pipeline mengarah ke `references/` dari paket training saat melakukan inferensi pada data `hidden`.
+> **Catatan Hidden Test:** `hidden_students.zip` tidak menyertakan folder `references/`. Keempat pipeline kami otomatis memuat dan melengkapi seluruh 7 desain dari `template_all/` pada saat inferensi `hidden`.
 
-### 3. Starter Notebook
-Gunakan `notebooks/Gingerbread_Student_Starter_Colab_ID_v2.ipynb` untuk eksplorasi awal data, validasi format prediksi, dan evaluasi metrik standar (Confusion Matrix, Precision, Recall, F1, Balanced Accuracy, MAE, & Exact Match).
+### 3. Bobot Model yang Diperlukan
+- **Task 1 — Non-Deep Learning (`notebooks/MiniProject_Task1_NonDL.ipynb`):** Tidak membutuhkan berkas bobot pralatih eksternal; seluruh model klasifikasi tabular `scikit-learn` dilatih langsung saat notebook dieksekusi.
+- **Task 1 — Deep Learning (`notebooks/Gingerbread_Task1_DeepLearning.ipynb`):** Memerlukan bobot pralatih **ImageNet `ResNet18`** (`torchvision.models.ResNet18_Weights.DEFAULT` / `resnet18-f37072fd.pth`, `~44.7 MB`). Bobot otomatis diunduh dan di-cache ke `~/.cache/torch/hub/checkpoints/` pada eksekusi pertama (pastikan koneksi internet aktif saat pertama kali menjalankan; tidak ada bobot `.pt`/`.pth` besar yang disimpan di repo).
+- **Task 2 — Non-Deep Learning (`src/task2_non_dl/`, `notebooks/Task2_Non_DL_Pipeline_dan_Analisis.ipynb`):** 100% *classical computer vision*; tidak membutuhkan bobot model neural network apa pun.
+
+### 4. Cara Menjalankan Setiap Tugas
+
+#### A. Eksekusi Lokal (Terminal / Jupyter)
+Jalankan dari folder root proyek (`Mini_Project/`):
+```bash
+# 1. Task 1 — Non-Deep Learning (output -> submissions/submission_tugas1_nondl/)
+jupyter nbconvert --to notebook --execute --inplace notebooks/MiniProject_Task1_NonDL.ipynb
+
+# 2. Task 1 — Deep Learning (output -> submissions/submission_tugas1_dl/)
+jupyter nbconvert --to notebook --execute --inplace notebooks/Gingerbread_Task1_DeepLearning.ipynb
+
+# 3. Task 2 — Non-Deep Learning via Notebook Lengkap (8 visualisasi + 4 model + audit CSV)
+jupyter nbconvert --to notebook --execute --inplace notebooks/Task2_Non_DL_Pipeline_dan_Analisis.ipynb
+
+# 4. Task 2 — Non-Deep Learning via Skrip CLI (model utama NCC -> submissions/submission_tugas2_nondl/)
+python -m src.task2_non_dl.evaluate_and_visualize
+```
+Untuk eksplorasi data awal maupun validasi format starter, tersedia pula `notebooks/Gingerbread_Student_Starter_Colab_ID_v2.ipynb`.
+
+#### B. Eksekusi di Google Colab
+1. Buka notebook dari Google Colab (`File -> Open notebook -> tab GitHub`, atau dari Google Drive).
+2. Jika membuka langsung dari tab GitHub, tambahkan dan jalankan satu cell di paling atas sebelum *Runtime -> Run all*:
+   - **Menggunakan Google Drive** (bila folder `Comvis/Mini_Project` beserta `data/*.zip` sudah diunggah):
+     ```python
+     from google.colab import drive
+     drive.mount('/content/drive')
+     ```
+   - **Atau clone repositori langsung ke VM Colab:**
+     ```bash
+     !git clone https://github.com/K10-Computer-Vision/gingerbread-cv-inspection.git /content/Mini_Project
+     %cd /content/Mini_Project
+     ```
+3. Tekan **Runtime → Run all**. Seluruh hasil prediksi CSV akan tersimpan otomatis di `submissions/submission_tugas*/`.
 
 ---
 
@@ -81,6 +119,30 @@ Gunakan `notebooks/Gingerbread_Student_Starter_Colab_ID_v2.ipynb` untuk eksplora
    - `[Feature] Menambahkan pipeline segmentasi warna untuk Task 1 Non-DL`
    - `[Docs] Memperbarui hasil eksperimen Task 2 pada README`
 3. Pastikan file `.zip`, citra dataset, dan bobot model besar (`.pt`/`.pth`) tidak ikut ter-commit.
+
+---
+
+## Implementasi Task 1 — Non-Deep Learning (`notebooks/MiniProject_Task1_NonDL.ipynb`)
+
+Kami merancang pipeline deteksi cacat *classical computer vision* berbasis registrasi geometris SIFT-homografi, normalisasi fotometrik kokoh, peta selisih bertoleransi geser di ruang warna CIELAB, serta klasifikasi tabular *out-of-fold*.
+
+1. **Bank Referensi & Penyelarasan Geometris (`SIFT + Lowe Ratio + RANSAC`):** Kami membangun bank fitur untuk 7 desain `template_all/` (`prep_gray` CLAHE, `ref_blur=1.2`, dan SIFT hingga `4000` keypoints), lalu menyelaraskan citra uji (`img_side=800`) melalui rasio Lowe (`0.78`, *fallback* `0.85`), penyaringan homografi konveks kokoh (`cv2.findHomography` RANSAC + *least-squares refinement* pada error $< 3.0\text{ px}$), dan mempertahankan hingga 3 kandidat desain teratas (`inliers >= 0.6 * top`) agar desain serupa dipisahkan secara fotometrik.
+2. **Normalisasi Fotometrik CIELAB & Peta Selisih Toleran:** Setelah referensi di-*warp* ke koordinat citra uji, kami menyamakan distribusi warna Lab memakai regresi kokoh **IRLS** (`fit_photometric`) serta koreksi gradien iluminasi berfrekuensi rendah (`lowfreq_field`). Kami lalu menghitung peta selisih warna toleran-geser $T(p) = \min_{\|s\|\le r} \Delta E(I(p+s), R(p))$ (`r = 1..3 px`, bobot kecerahan `wL=0.75`) sehingga salah-sejajar tepi minor teredam namun cacat tepi, lubang, atau hilangnya hiasan tetap tajam.
+3. **Ekstraksi Fitur Invarian Desain & Seleksi Model (`RuleModel` + Threshold OOF):** Kami mengekstrak fitur ternormalisasi terhadap luas objek referensi (persentil `T_med`/`T_p90`/`T_p99`, `T_blur_max`, komponen terhubung terbesar pada ambang $\tau \in \{12,18,26,38\}$, pemisahan pita tepi vs interior via *Euclidean distance transform*, dan kehilangan area icing). Kami membandingkan `rule`, `logreg`, `rf`, dan `hgb` pada split validasi, memilih model terbaik (`rule`) berdasarkan AUC validasi, lalu melakukan *refit* `train+val` dengan ambang validasi silang *out-of-fold* (`FINAL_THR = 0.015`).
+
+- **Hasil Terverifikasi:** Penyelarasan mencapai `100.0%` pada `train` (`140`), `val` (`30`), `test` (`30`), dan `hidden` (`700`) dengan akurasi identifikasi 7 desain `100.0%`. Pada evaluasi `test` dan validasi silang OOF (`170` citra `train+val`), kami mencatat **`AUC OOF = 1.000`**, **`Balanced Accuracy = 1.000`**, `Precision = 1.0`, `Recall = 1.0`, dan `F1 = 1.0` (`[[15, 0], [0, 15]]` pada `test`). Inferensi `700` citra *hidden* memprediksi `46.9%` cacat (`328` cacat, `372` sempurna) ke `submissions/submission_tugas1_nondl/`.
+
+---
+
+## Implementasi Task 1 — Deep Learning (`notebooks/Gingerbread_Task1_DeepLearning.ipynb`)
+
+Kami menggabungkan penyelarasan geometris SIFT-homografi dengan perbandingan representasi fitur konvolusional spasial dari jaringan pralatih `ResNet18` tanpa melatih ulang bobot backbone.
+
+1. **Identifikasi Desain & Penyelarasan Geometris (`SIFT + RANSAC`):** Kami melakukan pra-komputasi deskriptor `SIFT` (`nfeatures=2500`) pada seluruh 7 template `template_all/`, mencocokkan *Brute-Force L2* melalui *Lowe ratio test* (`0.75`), lalu mengestimasi matriks homografi `H` via `RANSAC` (`reproj=5.0 px`) dengan syarat minimal `6` *inliers* serta luas siluet ter-*warp* di rentang `15.000–150.000` piksel. Bila penyelarasan gagal akibat kue terpotong ekstrem, sampel otomatis ditandai cacat (`defect_score = 0.99`, `is_defective = 1`).
+2. **Ekstraksi Peta Fitur Konvolusional `ResNet18` (`layer2`):** Citra uji dan template yang telah disejajarkan di-*crop* mengikuti *bounding box* masker, di-*resize* ke `224×224`, dinormalisasi mengikuti standar ImageNet, lalu dilewatkan melalui backbone **`ResNet18`** pralatih ImageNet hingga keluaran konvolusi menengah **`layer2`** (`list(base_resnet.children())[:6]`) pada mode evaluasi (`eval()`).
+3. **Skoring Selisih Perseptual & Kalibrasi Sigmoid:** Kami menghitung norma L2 peta selisih fitur konvolusional $\lVert F(I_{\text{query}}) - F(T_{\text{aligned}})\rVert_2$, menginterpolasi secara bilinear ke ukuran masker *crop*, merata-ratakan nilai di dalam masker gingerbread (`deep_diff_inside`), lalu memetakannya menjadi skor probabilitas terkalibrasi $\sigma(4 \cdot (d - 1.55)) \in [0, 1]$ dengan ambang keputusan `is_defective = 1` jika `defect_score >= 0.67`.
+
+- **Hasil Terverifikasi:** Pada **Validation Set (`30` citra)** dan **Test Set (`30` citra)**, metode ini meraih **`Accuracy = 100.00%`**, `Precision = 1.0000`, `Recall = 1.0000`, `F1-Score = 1.0000`, serta `Balanced Accuracy = 1.0000` (`[[15, 0], [0, 15]]`). Pada inferensi `700` citra *hidden*, pipeline memprediksi `369` sempurna (`0`) dan `331` cacat (`1`) ke `submissions/submission_tugas1_dl/`.
 
 ---
 
