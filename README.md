@@ -9,7 +9,7 @@ Computer vision pipeline for gingerbread defect inspection and 3D cube packaging
 | Tugas | Deskripsi | Pendekatan Wajib | Target Output | Status Implementasi |
 | :--- | :--- | :--- | :--- | :--- |
 | **Task 1** | Deteksi cacat gingerbread individual (`boundary_cut`, `interior_hole`, `missing_feature`) | Non-Deep Learning & Deep Learning | `image_id,is_defective,defect_score` *(Kaggle: `image_id,is_defective`)* | Lengkap (Non-DL & DL) |
-| **Task 2** | Menghitung total gingerbread, jumlah cacat, & jumlah desain unik per sisi kemasan kubus (`front`, `right`, `top`) | Non-Deep Learning & Deep Learning | CSV 7 kolom (tugas utama) / 10 kolom (leaderboard) | Lengkap (Non-DL); **DL belum tersedia** |
+| **Task 2** | Menghitung total gingerbread, jumlah cacat, & jumlah desain unik per sisi kemasan kubus (`front`, `right`, `top`) | Non-Deep Learning & Deep Learning | CSV 7 kolom (tugas utama) / 10 kolom (leaderboard) | Lengkap (Non-DL & DL) |
 
 ---
 
@@ -30,13 +30,15 @@ gingerbread-cv-inspection/
 │   ├── Gingerbread_Student_Starter_Colab_ID_v2.ipynb
 │   ├── Gingerbread_Task1_DeepLearning.ipynb           # Notebook pipeline & inferensi Tugas 1 Deep Learning
 │   ├── MiniProject_Task1_NonDL.ipynb                # Notebook pipeline & inferensi Tugas 1 Non-Deep Learning
-│   └── Task2_Non_DL_Pipeline_dan_Analisis.ipynb     # Notebook analisis & evaluasi Tugas 2 Non-DL
+│   ├── Task2_Non_DL_Pipeline_dan_Analisis.ipynb     # Notebook analisis & evaluasi Tugas 2 Non-DL
+│   └── CV_MiniProject_Task2_DeepLearning.ipynb      # Notebook pipeline, training & inferensi Tugas 2 Deep Learning
 ├── src/
 │   └── task2_non_dl/                                # Pipeline klasik Task 2 (geometry, detector, baselines, eval)
 ├── submissions/                                     # Output CSV prediksi Kaggle & evaluasi terstruktur per tugas
 │   ├── submission_tugas1_nondl/                     # Hasil Task 1 Non-DL (submission_task1_nondl*.csv)
 │   ├── submission_tugas1_dl/                        # Hasil Task 1 DL (kaggle_task1_dl_submission.csv, single_dl_*)
-│   └── submission_tugas2_nondl/                     # Hasil Task 2 Non-DL (task2_*_{lb,main}.csv)
+│   ├── submission_tugas2_nondl/                     # Hasil Task 2 Non-DL (task2_*_{lb,main}.csv)
+│   └── submission_tugas2_dl/                        # Hasil Task 2 DL (task2_dl_hidden_{main,leaderboard,objects}.csv)
 └── reports/
     └── figures/                                     # Visualisasi diagnostik & analisis Task 2 Non-DL
 ```
@@ -46,7 +48,7 @@ gingerbread-cv-inspection/
 ## Petunjuk Menjalankan Kode (Dependencies, Lokasi Data, Model Weights, & Eksekusi)
 
 ### 1. Dependencies & Runtime Environment
-Seluruh pipeline telah diuji pada **Python 3.13.14** (`OpenCV 4.13.0`, `NumPy`, `Pandas`, `scikit-learn`, `SciPy`, `PyTorch`, `Torchvision`).
+Seluruh pipeline telah diuji pada **Python 3.13.14** (`OpenCV 4.13.0`, `NumPy`, `Pandas`, `scikit-learn`, `SciPy`, `PyTorch`, `Torchvision`, `segmentation-models-pytorch`).
 ```bash
 git clone https://github.com/K10-Computer-Vision/gingerbread-cv-inspection.git
 cd gingerbread-cv-inspection
@@ -58,14 +60,15 @@ pip install jupyter nbconvert   # tambahan jika menjalankan notebook lewat termi
 - **Training Dataset (`data/gingerbread_seed2026_students_training.zip`):** Memuat `200` citra *single* (`140` `train`, `30` `val`, `30` `test`) dan `100` citra *cube* (`70` `train`, `15` `val`, `15` `test`). Tautan resmi: [Google Drive](https://drive.google.com/file/d/1M1IRpFds1VyIkc9IJBehrprcjAEaPXSw/view?usp=sharing).
 - **Hidden Test Dataset (`data/hidden_students.zip`):** Memuat `700` citra *single* dan `200` citra *cube* tanpa label. Tautan resmi: [Google Drive](https://drive.google.com/file/d/1Jkl9WL75xv_Gxb24kaDKE48Q1q6iYFYJ/view?usp=sharing).
 - **Reference Templates (`template_all/`):** **Sudah tersedia langsung di dalam repository** (`template_all/designs.json` beserta `7` citra PNG template referensi: `blue_wizard`, `brown_hat_gnome`, `green_hat_elf`, `pilgrim`, `santa`, `striped_hat_elf`, `witch`).
-- **Auto-Resolver:** Keempat notebook otomatis mendeteksi *root repository* baik saat dijalankan dari `Mini_Project/`, dari `notebooks/`, maupun di Google Colab (`/content/drive/MyDrive/Comvis/Mini_Project`, `/content/drive/MyDrive/COMVIS/Mini_Project`, atau `/content/Mini_Project`). Pada Task 1, jika file `.zip` belum ada di `data/`, notebook otomatis mengunduhnya menggunakan `gdown`.
+- **Auto-Resolver:** Kelima notebook otomatis mendeteksi *root repository* baik saat dijalankan dari `Mini_Project/`, dari `notebooks/`, maupun di Google Colab (`/content/drive/MyDrive/Comvis/Mini_Project`, `/content/drive/MyDrive/COMVIS/Mini_Project`, atau `/content/Mini_Project`). Pada Task 1 dan Task 2 DL, jika file `.zip` belum ada di `data/`, notebook otomatis mengunduhnya menggunakan `gdown`.
 
-> **Catatan Hidden Test:** `hidden_students.zip` tidak menyertakan folder `references/`. Keempat pipeline kami otomatis memuat dan melengkapi seluruh `7` desain dari `template_all/` saat inference pada data `hidden`.
+> **Catatan Hidden Test:** `hidden_students.zip` tidak menyertakan folder `references/`. Kelima pipeline kami otomatis memuat dan melengkapi seluruh `7` desain dari `template_all/` saat inference pada data `hidden`.
 
 ### 3. Model Weights yang Diperlukan
 - **Task 1 — Non-Deep Learning (`notebooks/MiniProject_Task1_NonDL.ipynb`):** Tidak membutuhkan *pretrained weights* eksternal; seluruh model *tabular classifier* (`scikit-learn`) di-*train* langsung saat notebook dijalankan.
 - **Task 1 — Deep Learning (`notebooks/Gingerbread_Task1_DeepLearning.ipynb`):** Memerlukan *pretrained weights* **ImageNet `ResNet18`** (`torchvision.models.ResNet18_Weights.DEFAULT` / `resnet18-f37072fd.pth`, `~44.7 MB`). Weights otomatis diunduh dan di-*cache* ke `~/.cache/torch/hub/checkpoints/` pada eksekusi pertama (pastikan koneksi internet aktif pada run pertama; tidak ada file weights `.pt`/`.pth` yang disimpan di repo).
 - **Task 2 — Non-Deep Learning (`src/task2_non_dl/`, `notebooks/Task2_Non_DL_Pipeline_dan_Analisis.ipynb`):** 100% *classical computer vision*; tidak membutuhkan *neural network weights* apa pun.
+- **Task 2 — Deep Learning (`notebooks/CV_MiniProject_Task2_DeepLearning.ipynb`):** Memerlukan *pretrained weights* **ImageNet `ResNet18`** (encoder `smp.Unet`) serta frozen **`DINOv2 ViT-S/14`** (`dinov2_vits14_pretrain.pth`, `~84.2 MB`) yang otomatis diunduh dan di-*cache* oleh `torch.hub` ke `~/.cache/torch/hub/`. Checkpoint hasil training **`task2_face_unet.pt`** (`~57.4 MB`) dan defect classifier **`task2_defect_rf_v8.pkl`** otomatis dilatih dan disimpan ke `MODEL_DIR` (`models/` atau `scratch/task2_dl/models/`) jika belum tersedia.
 
 ### 4. Cara Menjalankan Setiap Tugas
 
@@ -83,6 +86,9 @@ jupyter nbconvert --to notebook --execute --inplace notebooks/Task2_Non_DL_Pipel
 
 # 4. Task 2 — Non-Deep Learning via CLI Script (main model NCC -> submissions/submission_tugas2_nondl/)
 python -m src.task2_non_dl.evaluate_and_visualize
+
+# 5. Task 2 — Deep Learning (training U-Net + DINOv2 + classifier -> submissions/submission_tugas2_dl/)
+jupyter nbconvert --to notebook --execute --inplace notebooks/CV_MiniProject_Task2_DeepLearning.ipynb
 ```
 Untuk eksplorasi awal dataset dan validasi format starter, tersedia pula `notebooks/Gingerbread_Student_Starter_Colab_ID_v2.ipynb`.
 
@@ -197,6 +203,18 @@ Pada uji generalisasi `cube_0817258b17ffb7d2` di `hidden_students.zip`, pemakaia
   ```bash
   python -m src.task2_non_dl.evaluate_and_visualize
   ```
+
+---
+
+## Implementasi Task 2 — Deep Learning (`notebooks/CV_MiniProject_Task2_DeepLearning.ipynb`)
+
+Kami merancang pipeline *end-to-end* berbasis *deep segmentation*, *self-supervised representation embeddings*, penyelarasan fitur lokal, dan *gradient-boosted tabular defect classification* untuk memprediksi jumlah gingerbread, jumlah cacat, serta jumlah desain unik di ketiga sisi kubus (`front`, `right`, `top`).
+
+1. **Cube Face Segmentation & Perspective Rectification (`smp.Unet` + `ResNet18` Encoder):** Kami melatih model segmentasi semantik 4-kelas (`background`, `front`, `right`, `top`) memakai `U-Net` (`segmentation_models_pytorch`, *pretrained* ImageNet `resnet18` *encoder*, input `256×256`, `24 epochs`, *optimizer* `AdamW`, *scheduler* `CosineAnnealingLR`, serta *class weights* `[0.3, 1.2, 4.0, 2.5]`). Saat *inference*, kami menerapkan *Test-Time Augmentation* (*horizontal flip* pada `predict_face_map_tta`), pembersihan masker morfologis (`_clean_face_mask`), dan *perspective transformation* (`extract_faces_clean`) ke bidang persegi `512×512`.
+2. **Instance Segmentation & Multi-Feature Design Identification (`DINOv2 ViT-S/14` + Contour/HSV Refinement):** Kami mendeteksi komponen cookie pada sisi ter-rektifikasi terhadap warna kardus (`detect_components`), lalu mengekstrak *L2-normalized embeddings* menggunakan frozen **`DINOv2 ViT-S/14`** terhadap bank referensi `7` desain `template_all/` beserta *synthetic augmented variants* (`build_reference_embeddings_v2`). Tiga kandidat desain dengan *cosine similarity* tertinggi disaring kembali menggunakan fitur konten geometris-warna (`_content_features`: *contour shape distance*, *Bhattacharyya HSV histogram distance*, rasio area putih *icing*, dan perbedaan tepi Canny).
+3. **SIFT/RANSAC Alignment & Defect Classification (`HistGradientBoostingClassifier` v8):** Kandidat desain teratas disejajarkan menggunakan `SIFT` (`nfeatures=1200`) + *Lowe ratio test* (`0.75`) + `RANSAC` 4-DOF (`estimateAffinePartial2D`) untuk mengukur `coverage`, `overlap_frac`, rasio noda CIELAB non-tepi (`stain`), dan `meande`. Selanjutnya kami melatih `HistGradientBoostingClassifier` (`max_depth=3`, `max_iter=400`, `learning_rate=0.04`) pada `20` *extended features* (`419` objek training ber-IoU $> 0.3$) dengan *decision threshold* `0.74` dan batas global maksimum `2` cookie cacat per citra kubus.
+
+- **Hasil Terverifikasi:** Model segmentasi sisi `U-Net` meraih **`best val mIoU = 0.9840`** (`val_acc = 0.9956`; per kelas `[0.995, 0.989, 0.976, 0.985]`). Evaluasi pada **`15` citra kubus `test` split** mencatat **`MAE_total = 0.0444`**, **`MAE_defective = 0.0000`**, **`MAE_defective_on_def_faces = 0.0000`**, **`MAE_design_count = 0.0889`**, **`Exact Match Face = 91.11%`**, dan **`Exact Match Image = 73.33%`**. Proses *inference* pada `200` citra `hidden` (`384.0s` / `1.92 s/image` di CPU) menyimpan tiga output tervalidasi ke `submissions/submission_tugas2_dl/` (`task2_dl_hidden_main.csv` `(200, 7)`, `task2_dl_hidden_leaderboard.csv` `(200, 10)`, dan `task2_dl_hidden_objects.csv` `(1170, 27)`) dengan distribusi cacat per kubus `{2: 90, 1: 68, 0: 42}`, serta visualisasi prediksi di `reports/task2_dl_visualizations/`.
 
 ### Referensi
 
