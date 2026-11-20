@@ -48,10 +48,16 @@ Setelah ketiga sisi diluruskan ke ruang kanonik `384x384`, kami mendeteksi jumla
 
 | Model (`v3`) | Kecepatan (`100` citra) | `MAE_defective` (`all` / `test`) | `MAE_def_on_def_faces` | `MAE_design_count` (`all` / `test`) | `Exact Match Main` (`all` / `test`) | `Exact Match LB` (`all` / `test`) | Kesamaan Hidden `200` dgn Main | Berkas CSV (`submissions/`) |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
-| **Main Multi-Template NCC** | `2.203 s/citra` | `0.0000` / `0.0000` | `0.0000` | `0.0000` / `0.0000` | `100.0%` / `100.0%` | `100.0%` / `100.0%` | `100.0%` | `task2_ncc_lb.csv`, `task2_ncc_main.csv` |
-| **SIFT + RANSAC (`v3`)** | `0.700 s/citra` | `0.0033` / `0.0000` | `0.0098` | `0.0033` / `0.0000` | `99.0%` / `100.0%` | `98.0%` / `100.0%` | `93.0%` | `task2_sift_lb.csv`, `task2_sift_main.csv` |
-| **ORB + RANSAC (`v3`)** | `0.590 s/citra` | `0.0133` / `0.0000` | `0.0098` | `0.0033` / `0.0222` | `97.0%` / `100.0%` | `96.0%` / `93.3%` | `92.0%` | `task2_orb_lb.csv`, `task2_orb_main.csv` |
-| **Contour + HSV (`v3`)** | `0.289 s/citra` | `0.0367` / `0.0000` | `0.0882` | `0.0267` / `0.0222` | `89.0%` / `100.0%` | `81.0%` / `93.3%` | `80.0%` | `task2_contour_lb.csv`, `task2_contour_main.csv` |
+| **Main Multi-Template NCC** | `2.043 s/citra` | `0.0000` / `0.0000` | `0.0000` | `0.0000` / `0.0000` | `100.0%` / `100.0%` | `100.0%` / `100.0%` | `100.0%` | `task2_ncc_lb.csv`, `task2_ncc_main.csv` |
+| **SIFT + RANSAC (`v3`)** | `0.633 s/citra` | `0.0033` / `0.0000` | `0.0098` | `0.0033` / `0.0000` | `99.0%` / `100.0%` | `98.0%` / `100.0%` | `93.0%` | `task2_sift_lb.csv`, `task2_sift_main.csv` |
+| **ORB + RANSAC (`v3`)** | `0.579 s/citra` | `0.0133` / `0.0000` | `0.0098` | `0.0033` / `0.0222` | `97.0%` / `100.0%` | `96.0%` / `93.3%` | `92.0%` | `task2_orb_lb.csv`, `task2_orb_main.csv` |
+| **Contour + HSV (`v3`)** | `0.281 s/citra` | `0.0367` / `0.0000` | `0.0882` | `0.0267` / `0.0222` | `89.0%` / `100.0%` | `81.0%` / `93.3%` | `80.0%` | `task2_contour_lb.csv`, `task2_contour_main.csv` |
+
+- **Pemisahan Error per Target (`100` kubus, `total` / `defective` / `design_count`) & Kategori Cacat (`boundary_cut` [47] / `interior_hole` [32] / `missing_feature` [31])**:
+  - `Main NCC`: `0 / 0 / 0` error (`100.0% / 100.0% / 100.0%` akurasi kategori cacat).
+  - `SIFT + RANSAC`: `0 / 1 / 1` error (`97.9% / 100.0% / 100.0%`).
+  - `ORB + RANSAC`: `0 / 3 / 1` error (`97.9% / 100.0% / 100.0%`).
+  - `Contour + HSV`: `0 / 11 / 8` error (`80.9% / 96.9% / 100.0%`).
 
 - **Akurasi Segmentasi Geometri 3D (`100` kubus / `300` sisi)**: `Mean IoU = 0.9843`, `Min IoU = 0.9320`.
 - **Akurasi Evaluasi End-to-End 7 Referensi (`100` kubus berlabel, `432.39s`)**:
